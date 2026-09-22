@@ -8,8 +8,6 @@
   </p>
 </div>
 
-a fast, low-level NTFS USN Journal parser and anti-forensics detection engine written in pure Rust for PC checkers, screensharers, and forensic analysts.
-
 ### features
 - USN journal bypass and anti-forensics detection (gap analysis, record stomping, zeroed sectors)
 - journal deletion and recreation auditing (fsutil tracking, journal ID changes, size resets)
