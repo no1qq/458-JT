@@ -41,6 +41,10 @@ pub fn render_top_bar(
     let mut action = TopBarAction::None;
 
     ui.horizontal(|ui| {
+        ui.add(
+            egui::Image::new(egui::include_image!("../../assets/logo.png"))
+                .fit_to_exact_size(egui::vec2(24.0, 24.0)),
+        );
         ui.heading("458 JT");
         ui.separator();
 

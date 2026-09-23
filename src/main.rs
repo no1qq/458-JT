@@ -51,6 +51,21 @@ fn relaunch_as_admin() -> bool {
     }
 }
 
+fn load_app_icon() -> Option<egui::IconData> {
+    let icon_bytes = include_bytes!("../assets/logo.png");
+    if let Ok(img) = image::load_from_memory(icon_bytes) {
+        let rgba = img.to_rgba8();
+        let (width, height) = rgba.dimensions();
+        Some(egui::IconData {
+            rgba: rgba.into_raw(),
+            width,
+            height,
+        })
+    } else {
+        None
+    }
+}
+
 fn main() -> eframe::Result<()> {
     if !is_process_elevated() && relaunch_as_admin() {
         return Ok(());
@@ -69,17 +84,26 @@ fn main() -> eframe::Result<()> {
         None
     };
 
+    let mut viewport = egui::ViewportBuilder::default()
+        .with_inner_size([1280.0, 780.0])
+        .with_min_inner_size([960.0, 560.0])
+        .with_title("458 JT - Forensic USN Journal & Anti-Forensics Inspector");
+
+    if let Some(icon) = load_app_icon() {
+        viewport = viewport.with_icon(std::sync::Arc::new(icon));
+    }
+
     let native_options = eframe::NativeOptions {
-        viewport: egui::ViewportBuilder::default()
-            .with_inner_size([1280.0, 780.0])
-            .with_min_inner_size([960.0, 560.0])
-            .with_title("458 JT - Forensic USN Journal & Anti-Forensics Inspector"),
+        viewport,
         ..Default::default()
     };
 
     eframe::run_native(
         "458 JT",
         native_options,
-        Box::new(move |_cc| Ok(Box::new(App::new(target_drive, privilege_error)))),
+        Box::new(move |cc| {
+            egui_extras::install_image_loaders(&cc.egui_ctx);
+            Ok(Box::new(App::new(target_drive, privilege_error)))
+        }),
     )
 }
