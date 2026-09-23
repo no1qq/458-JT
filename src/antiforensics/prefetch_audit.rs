@@ -11,7 +11,7 @@ pub fn audit_prefetch_tampering(records: &[UsnRecord]) -> Vec<TamperFinding> {
     ];
 
     let cleanup_tools = [
-        "fsutil", "srumutil", "bleachbit", "ccleaner", "cleanmgr", "powershell", "cmd",
+        "fsutil", "srumutil", "bleachbit", "ccleaner", "privazer", "wipe", "eraser", "usndelete",
     ];
 
     for r in records {
@@ -40,7 +40,7 @@ pub fn audit_prefetch_tampering(records: &[UsnRecord]) -> Vec<TamperFinding> {
             ),
             evidence: deleted_game_pf_usns.iter().take(20).copied().collect(),
         });
-    } else if deleted_pf_usns.len() >= 10 {
+    } else if deleted_pf_usns.len() >= 50 {
         findings.push(TamperFinding {
             severity: TamperSeverity::Suspicious,
             title: "Mass Prefetch File Deletion".to_string(),

@@ -7,12 +7,29 @@ pub fn audit_signature_changes(records: &[UsnRecord]) -> Vec<TamperFinding> {
     let mut rapid_basic_info_events = Vec::new();
 
     let user_paths = ["\\temp\\", "\\appdata\\", "\\desktop\\", "\\downloads\\"];
+    let dev_paths = [
+        "\\target\\",
+        "\\cargo\\",
+        "\\.cargo\\",
+        "\\.rustup\\",
+        "\\node_modules\\",
+        "\\.git\\",
+        "\\pip\\cache\\",
+        "\\npm-cache\\",
+        "\\nuget\\",
+        "\\microsoft\\visualstudio\\",
+    ];
     let exec_exts = [".exe", ".dll", ".sys", ".bat", ".ps1", ".jar", ".asi"];
 
     for r in records {
         let lower_path = r.full_path.to_ascii_lowercase();
         let in_user_path = user_paths.iter().any(|p| lower_path.contains(p));
         if !in_user_path {
+            continue;
+        }
+
+        let in_dev_path = dev_paths.iter().any(|p| lower_path.contains(p));
+        if in_dev_path {
             continue;
         }
 

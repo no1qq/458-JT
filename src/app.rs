@@ -302,16 +302,13 @@ impl eframe::App for App {
             });
 
         CentralPanel::default().show(ctx, |ui| {
-            let prev_selected = self.selected_record_id;
             render_table_view(
                 ui,
                 &self.filtered_indices,
                 &self.records,
                 &mut self.selected_record_id,
+                &mut self.detail_modal_open,
             );
-            if self.selected_record_id.is_some() && self.selected_record_id != prev_selected {
-                self.detail_modal_open = true;
-            }
         });
 
         let bypass_action = render_bypass_modal(

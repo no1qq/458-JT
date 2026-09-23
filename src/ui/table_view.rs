@@ -8,13 +8,28 @@ pub fn render_table_view(
     filtered_indices: &[usize],
     records: &[UsnRecord],
     selected_record_id: &mut Option<usize>,
+    detail_modal_open: &mut bool,
 ) {
+    ui.style_mut().interaction.selectable_labels = false;
+
+    let wheel_delta = ui.input(|i| i.smooth_scroll_delta.y);
+    if wheel_delta != 0.0 && ui.rect_contains_pointer(ui.max_rect()) {
+        ui.ctx().input_mut(|i| {
+            i.smooth_scroll_delta.y *= 6.0;
+        });
+    }
+
     let row_height = 20.0;
     let total_rows = filtered_indices.len();
+    let available_height = ui.available_height();
 
     TableBuilder::new(ui)
         .striped(true)
         .resizable(true)
+        .sense(Sense::click())
+        .auto_shrink([false, false])
+        .min_scrolled_height(available_height)
+        .max_scroll_height(f32::INFINITY)
         .cell_layout(egui::Layout::left_to_right(egui::Align::Center))
         .column(Column::exact(165.0))
         .column(Column::remainder().clip(true))
@@ -45,13 +60,20 @@ pub fn render_table_view(
                 let is_selected = *selected_record_id == Some(rec.id);
                 row.set_selected(is_selected);
 
+                let mut row_clicked = false;
+
                 row.col(|ui| {
                     let mut text = RichText::new(&rec.timestamp_formatted);
                     if rec.is_ghost {
                         text = text.color(Color32::from_rgb(245, 158, 11));
                     }
-                    if ui.add(egui::Label::new(text).sense(Sense::click())).clicked() {
-                        *selected_record_id = Some(rec.id);
+                    let resp = ui.add(
+                        egui::Label::new(text)
+                            .selectable(false)
+                            .sense(Sense::click()),
+                    );
+                    if resp.clicked() {
+                        row_clicked = true;
                     }
                 });
 
@@ -64,17 +86,34 @@ pub fn render_table_view(
                                     .strong(),
                             );
                         }
-                        if ui.add(egui::Label::new(&rec.full_path).sense(Sense::click())).clicked() {
-                            *selected_record_id = Some(rec.id);
+                        let resp = ui.add(
+                            egui::Label::new(&rec.full_path)
+                                .selectable(false)
+                                .sense(Sense::click())
+                                .truncate(),
+                        );
+                        if resp.clicked() {
+                            row_clicked = true;
                         }
                     });
                 });
 
                 row.col(|ui| {
-                    if ui.add(egui::Label::new(&rec.reason_str).sense(Sense::click())).clicked() {
-                        *selected_record_id = Some(rec.id);
+                    let resp = ui.add(
+                        egui::Label::new(&rec.reason_str)
+                            .selectable(false)
+                            .sense(Sense::click())
+                            .truncate(),
+                    );
+                    if resp.clicked() {
+                        row_clicked = true;
                     }
                 });
+
+                if row_clicked || row.response().clicked() {
+                    *selected_record_id = Some(rec.id);
+                    *detail_modal_open = true;
+                }
             });
         });
 }
