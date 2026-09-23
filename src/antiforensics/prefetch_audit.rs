@@ -29,6 +29,41 @@ pub fn audit_prefetch_tampering(records: &[UsnRecord]) -> Vec<TamperFinding> {
         "usndelete.exe-",
     ];
 
+    let windows_system_prefixes = [
+        "compattelrunner.exe-",
+        "dataexchangehost.exe-",
+        "dismhost.exe-",
+        "tiworker.exe-",
+        "trustedinstaller.exe-",
+        "mscorsvw.exe-",
+        "ngentask.exe-",
+        "wermgr.exe-",
+        "backgroundtaskhost.exe-",
+        "runtimebroker.exe-",
+        "searchhost.exe-",
+        "devicecensus.exe-",
+        "systemsettingsadminflows.exe-",
+        "systemsettings.exe-",
+        "sedlauncher.exe-",
+        "waasmedic",
+        "usoclient.exe-",
+        "mofcomp.exe-",
+        "cleanmgr.exe-",
+        "taskhostw.exe-",
+        "svchost.exe-",
+        "rundll32.exe-",
+        "dllhost.exe-",
+        "conhost.exe-",
+        "audiodg.exe-",
+        "smartscreen.exe-",
+        "searchapp.exe-",
+        "startmenuexperiencehost.exe-",
+        "shellexperiencehost.exe-",
+        "sihost.exe-",
+        "werfault.exe-",
+        "ctfmon.exe-",
+    ];
+
     for r in records {
         if (r.reason & USN_REASON_FILE_DELETE) != 0 && r.timestamp_raw > 0 {
             let lower_name = r.file_name.to_ascii_lowercase();
@@ -42,9 +77,15 @@ pub fn audit_prefetch_tampering(records: &[UsnRecord]) -> Vec<TamperFinding> {
                 let is_game = competitive_game_prefixes.iter().any(|g| lower_name.starts_with(g));
                 if is_game {
                     deleted_game_pf_usns.push(r.usn);
-                } else {
-                    deleted_pf_events.push((r.timestamp_raw, r.usn));
+                    continue;
                 }
+
+                let is_system = windows_system_prefixes.iter().any(|s| lower_name.starts_with(s));
+                if is_system {
+                    continue;
+                }
+
+                deleted_pf_events.push((r.timestamp_raw, r.usn));
             }
         }
     }
