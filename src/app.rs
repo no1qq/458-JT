@@ -293,8 +293,8 @@ impl eframe::App for App {
         });
 
         SidePanel::right("right_filter_sidebar")
-            .resizable(true)
-            .default_width(260.0)
+            .resizable(false)
+            .exact_width(260.0)
             .show(ctx, |ui| {
                 if render_filter_sidebar(ui, &mut self.filter_state) {
                     self.recompute_filter();

@@ -22,6 +22,10 @@ pub fn render_table_view(
     let row_height = 20.0;
     let total_rows = filtered_indices.len();
     let available_height = ui.available_height();
+    let available_width = ui.available_width();
+    let timestamp_width = 165.0;
+    let reason_width = 240.0;
+    let path_width = (available_width - timestamp_width - reason_width).max(200.0);
 
     TableBuilder::new(ui)
         .striped(true)
@@ -31,9 +35,9 @@ pub fn render_table_view(
         .min_scrolled_height(available_height)
         .max_scroll_height(f32::INFINITY)
         .cell_layout(egui::Layout::left_to_right(egui::Align::Center))
-        .column(Column::exact(165.0))
+        .column(Column::exact(timestamp_width).resizable(true))
+        .column(Column::initial(path_width).at_least(180.0).clip(true).resizable(true))
         .column(Column::remainder().clip(true))
-        .column(Column::initial(280.0).at_least(200.0))
         .header(22.0, |mut header| {
             header.col(|ui| {
                 ui.strong("Timestamp (local)");

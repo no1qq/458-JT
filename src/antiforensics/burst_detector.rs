@@ -5,14 +5,7 @@ pub fn detect_deletion_bursts(records: &[UsnRecord]) -> Vec<TamperFinding> {
     let mut findings = Vec::new();
     let mut delete_events = Vec::new();
 
-    let sensitive_folders = [
-        "\\temp\\",
-        "\\appdata\\",
-        "\\desktop\\",
-        "\\downloads\\",
-    ];
-
-    let cache_paths = [
+    let excluded_paths = [
         "\\cache",
         "\\code cache",
         "\\gpucache",
@@ -21,39 +14,61 @@ pub fn detect_deletion_bursts(records: &[UsnRecord]) -> Vec<TamperFinding> {
         "\\crashpad",
         "\\shadercache",
         "\\thumbnails",
-        "\\google\\chrome",
-        "\\microsoft\\edge",
-        "\\mozilla\\firefox",
-        "\\bravebrowser",
+        "\\google\\",
+        "\\microsoft\\",
+        "\\mozilla\\",
         "\\discord\\",
         "\\spotify\\",
+        "\\slack\\",
+        "\\githubdesktop\\",
+        "\\jetbrains\\",
+        "\\steam\\",
+        "\\programs\\",
+        "\\packages\\",
         "\\node_modules",
         "\\target\\",
         "\\cargo\\",
+        "\\.cargo\\",
+        "\\.rustup\\",
+        "\\.vscode\\",
+        "\\npm\\",
+        "\\pip\\",
+        "\\yarn\\",
+        "\\nuget\\",
+        "\\chocolatey\\",
+        "\\scoop\\",
+        "\\winget\\",
+        "\\squirrel-temp\\",
+        "\\nvidia\\",
+        "\\amd\\",
+        "\\intel\\",
     ];
 
-    let executable_exts = [
-        ".exe", ".sys", ".bat", ".ps1", ".cmd", ".vbs", ".jar", ".asi",
-    ];
+    let user_working_dirs = ["\\desktop\\", "\\downloads\\"];
+    let system_scratch_dirs = ["\\temp\\", "\\appdata\\"];
+
+    let binary_exts = [".exe", ".sys", ".dll", ".asi"];
+    let script_exts = [".bat", ".ps1", ".cmd", ".vbs", ".jar"];
 
     for r in records {
         if (r.reason & USN_REASON_FILE_DELETE) != 0 && r.timestamp_raw > 0 {
             let lower_path = r.full_path.to_ascii_lowercase();
 
-            if cache_paths.iter().any(|c| lower_path.contains(c)) {
+            if excluded_paths.iter().any(|c| lower_path.contains(c)) {
                 continue;
             }
 
-            let in_sensitive_folder = sensitive_folders.iter().any(|f| lower_path.contains(f));
-            if !in_sensitive_folder {
+            let in_user_work = user_working_dirs.iter().any(|d| lower_path.contains(d));
+            let in_scratch = system_scratch_dirs.iter().any(|d| lower_path.contains(d));
+
+            if !in_user_work && !in_scratch {
                 continue;
             }
 
-            let is_exec = executable_exts.iter().any(|ext| lower_path.ends_with(ext));
-            let is_root_dll = lower_path.ends_with(".dll")
-                && (lower_path.starts_with("c:\\users\\") && lower_path.matches('\\').count() <= 5);
+            let is_binary = binary_exts.iter().any(|ext| lower_path.ends_with(ext));
+            let is_script = in_user_work && script_exts.iter().any(|ext| lower_path.ends_with(ext));
 
-            if is_exec || is_root_dll {
+            if is_binary || is_script {
                 delete_events.push((r.timestamp_raw, r.usn));
             }
         }
@@ -77,7 +92,7 @@ pub fn detect_deletion_bursts(records: &[UsnRecord]) -> Vec<TamperFinding> {
         } else if *ts - window_start <= window_ticks {
             current_cluster.push(*usn);
         } else {
-            if current_cluster.len() >= 3 {
+            if current_cluster.len() >= 8 {
                 panic_bursts.push(current_cluster.clone());
             }
 
@@ -87,7 +102,7 @@ pub fn detect_deletion_bursts(records: &[UsnRecord]) -> Vec<TamperFinding> {
         }
     }
 
-    if current_cluster.len() >= 3 {
+    if current_cluster.len() >= 8 {
         panic_bursts.push(current_cluster);
     }
 
@@ -99,8 +114,14 @@ pub fn detect_deletion_bursts(records: &[UsnRecord]) -> Vec<TamperFinding> {
             .take(20)
             .collect();
 
+        let severity = if total_files >= 25 {
+            TamperSeverity::Critical
+        } else {
+            TamperSeverity::Suspicious
+        };
+
         findings.push(TamperFinding {
-            severity: TamperSeverity::Critical,
+            severity,
             title: "Rapid Executable Deletion Bursts".to_string(),
             description: format!(
                 "Detected {} rapid deletion bursts targeting executables, drivers, or scripts (totaling {} files) within 3-second windows in sensitive locations.",

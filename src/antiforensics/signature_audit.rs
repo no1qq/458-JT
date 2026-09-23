@@ -7,17 +7,35 @@ pub fn audit_signature_changes(records: &[UsnRecord]) -> Vec<TamperFinding> {
     let mut rapid_basic_info_events = Vec::new();
 
     let user_paths = ["\\temp\\", "\\appdata\\", "\\desktop\\", "\\downloads\\"];
-    let dev_paths = [
+    let excluded_paths = [
+        "\\programs\\",
+        "\\packages\\",
+        "\\google\\",
+        "\\microsoft\\",
+        "\\mozilla\\",
+        "\\discord\\",
+        "\\spotify\\",
+        "\\slack\\",
+        "\\githubdesktop\\",
+        "\\jetbrains\\",
+        "\\steam\\",
         "\\target\\",
         "\\cargo\\",
         "\\.cargo\\",
         "\\.rustup\\",
         "\\node_modules\\",
         "\\.git\\",
-        "\\pip\\cache\\",
-        "\\npm-cache\\",
+        "\\.vscode\\",
+        "\\pip\\",
+        "\\npm\\",
+        "\\yarn\\",
         "\\nuget\\",
-        "\\microsoft\\visualstudio\\",
+        "\\visualstudio\\",
+        "\\electron\\",
+        "\\crashpad\\",
+        "\\nvidia\\",
+        "\\amd\\",
+        "\\intel\\",
     ];
     let exec_exts = [".exe", ".dll", ".sys", ".bat", ".ps1", ".jar", ".asi"];
 
@@ -28,8 +46,8 @@ pub fn audit_signature_changes(records: &[UsnRecord]) -> Vec<TamperFinding> {
             continue;
         }
 
-        let in_dev_path = dev_paths.iter().any(|p| lower_path.contains(p));
-        if in_dev_path {
+        let in_excluded = excluded_paths.iter().any(|p| lower_path.contains(p));
+        if in_excluded {
             continue;
         }
 
@@ -43,7 +61,13 @@ pub fn audit_signature_changes(records: &[UsnRecord]) -> Vec<TamperFinding> {
         }
 
         if (r.reason & USN_REASON_BASIC_INFO_CHANGE) != 0 && (r.reason & 0x0000_0007) == 0 {
-            rapid_basic_info_events.push((r.timestamp_raw, r.usn));
+            let is_user_root = lower_path.contains("\\desktop\\")
+                || lower_path.contains("\\downloads\\")
+                || lower_path.matches('\\').count() <= 5;
+
+            if is_user_root {
+                rapid_basic_info_events.push((r.timestamp_raw, r.usn));
+            }
         }
     }
 
@@ -72,7 +96,7 @@ pub fn audit_signature_changes(records: &[UsnRecord]) -> Vec<TamperFinding> {
         } else if *ts - window_start <= window_ticks {
             current_cluster.push(*usn);
         } else {
-            if current_cluster.len() >= 8 {
+            if current_cluster.len() >= 15 {
                 stomping_bursts.push(current_cluster.clone());
             }
             current_cluster.clear();
@@ -81,7 +105,7 @@ pub fn audit_signature_changes(records: &[UsnRecord]) -> Vec<TamperFinding> {
         }
     }
 
-    if current_cluster.len() >= 8 {
+    if current_cluster.len() >= 15 {
         stomping_bursts.push(current_cluster);
     }
 

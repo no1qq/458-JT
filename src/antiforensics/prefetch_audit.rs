@@ -5,13 +5,28 @@ pub fn audit_prefetch_tampering(records: &[UsnRecord]) -> Vec<TamperFinding> {
     let mut findings = Vec::new();
     let mut deleted_pf_usns = Vec::new();
     let mut deleted_game_pf_usns = Vec::new();
+    let mut deleted_cleaner_pf_usns = Vec::new();
 
-    let competitive_games = [
-        "javaw", "minecraft", "cs2", "csgo", "valorant", "fortnite", "roblox", "r5apex", "fivem",
+    let competitive_game_prefixes = [
+        "javaw.exe-",
+        "minecraft.exe-",
+        "cs2.exe-",
+        "csgo.exe-",
+        "valorant.exe-",
+        "fortniteclient",
+        "robloxplayer",
+        "r5apex.exe-",
+        "fivem.exe-",
+        "fivem_",
     ];
 
-    let cleanup_tools = [
-        "fsutil", "srumutil", "bleachbit", "ccleaner", "privazer", "wipe", "eraser", "usndelete",
+    let cleaner_prefixes = [
+        "bleachbit.exe-",
+        "ccleaner.exe-",
+        "privazer.exe-",
+        "fsutil.exe-",
+        "srumutil.exe-",
+        "usndelete.exe-",
     ];
 
     for r in records {
@@ -20,25 +35,63 @@ pub fn audit_prefetch_tampering(records: &[UsnRecord]) -> Vec<TamperFinding> {
             if lower_name.ends_with(".pf") {
                 deleted_pf_usns.push(r.usn);
 
-                let is_game = competitive_games.iter().any(|g| lower_name.contains(g));
-                let is_cleaner = cleanup_tools.iter().any(|c| lower_name.contains(c));
+                let is_cleaner = cleaner_prefixes.iter().any(|c| lower_name.starts_with(c));
+                if is_cleaner {
+                    deleted_cleaner_pf_usns.push(r.usn);
+                    continue;
+                }
 
-                if is_game || is_cleaner {
+                let is_game = competitive_game_prefixes.iter().any(|g| lower_name.starts_with(g));
+                if is_game {
                     deleted_game_pf_usns.push(r.usn);
                 }
             }
         }
     }
 
-    if !deleted_game_pf_usns.is_empty() {
+    if !deleted_cleaner_pf_usns.is_empty() {
         findings.push(TamperFinding {
             severity: TamperSeverity::Critical,
-            title: "Competitive Game or Cleaner Prefetch Wiping Detected".to_string(),
+            title: "Anti-Forensic Cleaner Prefetch Deletion Detected".to_string(),
             description: format!(
-                "Discovered {} deleted prefetch (.pf) files matching competitive game binaries or anti-forensic cleaning tools.",
+                "Discovered {} deleted prefetch (.pf) files matching anti-forensic cleaning tools.",
+                deleted_cleaner_pf_usns.len()
+            ),
+            evidence: deleted_cleaner_pf_usns.iter().take(20).copied().collect(),
+        });
+    }
+
+    if deleted_game_pf_usns.len() >= 20 {
+        findings.push(TamperFinding {
+            severity: TamperSeverity::Critical,
+            title: "Competitive Game Prefetch Wiping Detected".to_string(),
+            description: format!(
+                "Discovered {} deleted prefetch (.pf) files matching competitive game binaries.",
                 deleted_game_pf_usns.len()
             ),
             evidence: deleted_game_pf_usns.iter().take(20).copied().collect(),
+        });
+    } else if deleted_game_pf_usns.len() >= 5 {
+        findings.push(TamperFinding {
+            severity: TamperSeverity::Suspicious,
+            title: "Selective Game Prefetch Deletion".to_string(),
+            description: format!(
+                "Identified {} deleted game prefetch (.pf) files.",
+                deleted_game_pf_usns.len()
+            ),
+            evidence: deleted_game_pf_usns.iter().take(20).copied().collect(),
+        });
+    }
+
+    if deleted_pf_usns.len() >= 150 {
+        findings.push(TamperFinding {
+            severity: TamperSeverity::Critical,
+            title: "Mass Prefetch Wiping Detected".to_string(),
+            description: format!(
+                "Identified {} prefetch file deletions, indicating total execution history wiping.",
+                deleted_pf_usns.len()
+            ),
+            evidence: deleted_pf_usns.iter().take(20).copied().collect(),
         });
     } else if deleted_pf_usns.len() >= 50 {
         findings.push(TamperFinding {
