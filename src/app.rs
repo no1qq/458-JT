@@ -1,6 +1,7 @@
 use std::sync::atomic::Ordering;
+use std::time::{Duration, Instant};
 
-use egui::{Context, TopBottomPanel, SidePanel, CentralPanel};
+use egui::{CentralPanel, Context, SidePanel, TopBottomPanel};
 use rayon::prelude::*;
 use regex::Regex;
 
@@ -32,6 +33,7 @@ pub struct App {
     pub scan_stats: ScanStats,
     pub antiforensics_report: AntiForensicsReport,
     pub status_message: String,
+    pub status_message_expires_at: Option<Instant>,
     pub current_progress: Option<f32>,
     pub target_drive: char,
     pub privilege_error: Option<String>,
@@ -59,6 +61,7 @@ impl App {
             scan_stats: ScanStats::default(),
             antiforensics_report: AntiForensicsReport::default(),
             status_message: "Initializing...".to_string(),
+            status_message_expires_at: None,
             current_progress: Some(0.0),
             target_drive,
             privilege_error,
@@ -125,10 +128,12 @@ impl App {
             match event {
                 WorkerEvent::Status(msg) => {
                     self.status_message = msg;
+                    self.status_message_expires_at = None;
                 }
                 WorkerEvent::Progress { percent, message } => {
                     self.current_progress = Some(percent);
                     self.status_message = message;
+                    self.status_message_expires_at = None;
                 }
                 WorkerEvent::BatchRecords(batch) => {
                     self.records.extend(batch);
@@ -138,6 +143,7 @@ impl App {
                     self.scan_stats = stats;
                     self.current_progress = None;
                     self.status_message = format!("Scan complete. Loaded {} entries.", self.records.len());
+                    self.status_message_expires_at = None;
                     new_records_received = true;
                 }
                 WorkerEvent::BypassReport(report) => {
@@ -145,6 +151,7 @@ impl App {
                 }
                 WorkerEvent::Error(err) => {
                     self.status_message = format!("Error: {}", err);
+                    self.status_message_expires_at = None;
                     self.current_progress = None;
                 }
             }
@@ -159,6 +166,17 @@ impl App {
 impl eframe::App for App {
     fn update(&mut self, ctx: &Context, _frame: &mut eframe::Frame) {
         self.drain_worker_events();
+
+        if let Some(expires_at) = self.status_message_expires_at {
+            let now = Instant::now();
+            if now >= expires_at {
+                self.status_message.clear();
+                self.status_message_expires_at = None;
+            } else {
+                ctx.request_repaint_after(expires_at - now);
+            }
+        }
+
         apply_theme(ctx, self.dark_mode);
 
         let mut dismiss_privilege_error = false;
@@ -233,9 +251,11 @@ impl eframe::App for App {
                     match export_records_to_csv(&filename, &self.records, &self.filtered_indices) {
                         Ok(cnt) => {
                             self.status_message = format!("Exported {} records to {}", cnt, filename);
+                            self.status_message_expires_at = Some(Instant::now() + Duration::from_secs(3));
                         }
                         Err(e) => {
                             self.status_message = format!("Export failed: {}", e);
+                            self.status_message_expires_at = Some(Instant::now() + Duration::from_secs(3));
                         }
                     }
                 }
@@ -251,9 +271,11 @@ impl eframe::App for App {
                     ) {
                         Ok(cnt) => {
                             self.status_message = format!("Exported report with {} records to {}", cnt, filename);
+                            self.status_message_expires_at = Some(Instant::now() + Duration::from_secs(3));
                         }
                         Err(e) => {
                             self.status_message = format!("Export failed: {}", e);
+                            self.status_message_expires_at = Some(Instant::now() + Duration::from_secs(3));
                         }
                     }
                 }
