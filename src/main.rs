@@ -87,7 +87,7 @@ fn main() -> eframe::Result<()> {
     let mut viewport = egui::ViewportBuilder::default()
         .with_inner_size([1280.0, 780.0])
         .with_min_inner_size([960.0, 560.0])
-        .with_title("458 JT - Forensic USN Journal & Anti-Forensics Inspector");
+        .with_title("458 JT");
 
     if let Some(icon) = load_app_icon() {
         viewport = viewport.with_icon(std::sync::Arc::new(icon));

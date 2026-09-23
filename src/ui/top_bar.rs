@@ -41,17 +41,10 @@ pub fn render_top_bar(
     let mut action = TopBarAction::None;
 
     ui.horizontal(|ui| {
-        ui.add(
-            egui::Image::new(egui::include_image!("../../assets/logo.png"))
-                .fit_to_exact_size(egui::vec2(24.0, 24.0)),
-        );
-        ui.heading("458 JT");
-        ui.separator();
-
         let search_response = ui.add(
             TextEdit::singleline(search_query)
                 .hint_text("Search file paths... (e.g. Temp\\loader.exe, r/\\.dll$/)")
-                .desired_width(ui.available_width() - 560.0),
+                .desired_width((ui.available_width() - 680.0).max(200.0)),
         );
         if search_response.changed() {
             action = TopBarAction::SearchChanged;
