@@ -65,10 +65,15 @@ pub fn detect_deletion_bursts(records: &[UsnRecord]) -> Vec<TamperFinding> {
                 continue;
             }
 
-            let is_binary = binary_exts.iter().any(|ext| lower_path.ends_with(ext));
-            let is_script = in_user_work && script_exts.iter().any(|ext| lower_path.ends_with(ext));
+            let is_target = if in_user_work {
+                binary_exts.iter().any(|ext| lower_path.ends_with(ext))
+                    || script_exts.iter().any(|ext| lower_path.ends_with(ext))
+            } else {
+                (lower_path.ends_with(".exe") || lower_path.ends_with(".sys"))
+                    && lower_path.matches('\\').count() <= 5
+            };
 
-            if is_binary || is_script {
+            if is_target {
                 delete_events.push((r.timestamp_raw, r.usn));
             }
         }
