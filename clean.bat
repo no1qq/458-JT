@@ -6,3 +6,4 @@ rem cleaning bin directory and binaries
 if exist "bin" rmdir /s /q "bin" 2>nul
 if exist "*.old.exe" del /f /q "*.old.exe" 2>nul
 echo clean complete: build artifacts removed
+pause
