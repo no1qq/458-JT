@@ -10,7 +10,6 @@ pub fn detect_deletion_bursts(records: &[UsnRecord]) -> Vec<TamperFinding> {
         "\\appdata\\",
         "\\desktop\\",
         "\\downloads\\",
-        "\\windows\\prefetch\\",
     ];
 
     let cache_paths = [
@@ -33,8 +32,8 @@ pub fn detect_deletion_bursts(records: &[UsnRecord]) -> Vec<TamperFinding> {
         "\\cargo\\",
     ];
 
-    let high_risk_exts = [
-        ".exe", ".dll", ".sys", ".bat", ".ps1", ".cmd", ".vbs", ".jar", ".asi", ".pf",
+    let executable_exts = [
+        ".exe", ".sys", ".bat", ".ps1", ".cmd", ".vbs", ".jar", ".asi",
     ];
 
     for r in records {
@@ -50,8 +49,13 @@ pub fn detect_deletion_bursts(records: &[UsnRecord]) -> Vec<TamperFinding> {
                 continue;
             }
 
-            let is_high_risk_ext = high_risk_exts.iter().any(|ext| lower_path.ends_with(ext));
-            delete_events.push((r.timestamp_raw, r.usn, is_high_risk_ext));
+            let is_exec = executable_exts.iter().any(|ext| lower_path.ends_with(ext));
+            let is_root_dll = lower_path.ends_with(".dll")
+                && (lower_path.starts_with("c:\\users\\") && lower_path.matches('\\').count() <= 5);
+
+            if is_exec || is_root_dll {
+                delete_events.push((r.timestamp_raw, r.usn));
+            }
         }
     }
 
@@ -62,44 +66,34 @@ pub fn detect_deletion_bursts(records: &[UsnRecord]) -> Vec<TamperFinding> {
     delete_events.sort_by_key(|e| e.0);
 
     let window_ticks = 30_000_000i64;
-    let mut high_risk_bursts: Vec<Vec<i64>> = Vec::new();
-    let mut general_bursts: Vec<Vec<i64>> = Vec::new();
-
-    let mut current_cluster: Vec<(i64, bool)> = Vec::new();
+    let mut panic_bursts: Vec<Vec<i64>> = Vec::new();
+    let mut current_cluster: Vec<i64> = Vec::new();
     let mut window_start = 0i64;
 
-    for (ts, usn, is_high_risk) in &delete_events {
+    for (ts, usn) in &delete_events {
         if current_cluster.is_empty() {
             window_start = *ts;
-            current_cluster.push((*usn, *is_high_risk));
+            current_cluster.push(*usn);
         } else if *ts - window_start <= window_ticks {
-            current_cluster.push((*usn, *is_high_risk));
+            current_cluster.push(*usn);
         } else {
-            let high_risk_count = current_cluster.iter().filter(|(_, hr)| *hr).count();
-            if high_risk_count >= 3 {
-                high_risk_bursts.push(current_cluster.iter().map(|(u, _)| *u).collect());
-            } else if current_cluster.len() >= 25 {
-                general_bursts.push(current_cluster.iter().map(|(u, _)| *u).collect());
+            if current_cluster.len() >= 3 {
+                panic_bursts.push(current_cluster.clone());
             }
 
             current_cluster.clear();
             window_start = *ts;
-            current_cluster.push((*usn, *is_high_risk));
+            current_cluster.push(*usn);
         }
     }
 
-    if !current_cluster.is_empty() {
-        let high_risk_count = current_cluster.iter().filter(|(_, hr)| *hr).count();
-        if high_risk_count >= 3 {
-            high_risk_bursts.push(current_cluster.iter().map(|(u, _)| *u).collect());
-        } else if current_cluster.len() >= 25 {
-            general_bursts.push(current_cluster.iter().map(|(u, _)| *u).collect());
-        }
+    if current_cluster.len() >= 3 {
+        panic_bursts.push(current_cluster);
     }
 
-    if !high_risk_bursts.is_empty() {
-        let total_files: usize = high_risk_bursts.iter().map(|c| c.len()).sum();
-        let sample_usns: Vec<i64> = high_risk_bursts
+    if !panic_bursts.is_empty() {
+        let total_files: usize = panic_bursts.iter().map(|c| c.len()).sum();
+        let sample_usns: Vec<i64> = panic_bursts
             .iter()
             .flat_map(|c| c.iter().copied())
             .take(20)
@@ -107,30 +101,10 @@ pub fn detect_deletion_bursts(records: &[UsnRecord]) -> Vec<TamperFinding> {
 
         findings.push(TamperFinding {
             severity: TamperSeverity::Critical,
-            title: "Rapid Executable or Prefetch Deletion Bursts".to_string(),
+            title: "Rapid Executable Deletion Bursts".to_string(),
             description: format!(
-                "Detected {} rapid deletion bursts targeting executables, scripts, or prefetch files (totaling {} files) within 3-second windows in sensitive locations.",
-                high_risk_bursts.len(),
-                total_files
-            ),
-            evidence: sample_usns,
-        });
-    }
-
-    if !general_bursts.is_empty() {
-        let total_files: usize = general_bursts.iter().map(|c| c.len()).sum();
-        let sample_usns: Vec<i64> = general_bursts
-            .iter()
-            .flat_map(|c| c.iter().copied())
-            .take(20)
-            .collect();
-
-        findings.push(TamperFinding {
-            severity: TamperSeverity::Suspicious,
-            title: "Mass User File Deletion Bursts".to_string(),
-            description: format!(
-                "Detected {} mass deletion bursts (totaling {} non-cache files) within 3-second windows in user folders.",
-                general_bursts.len(),
+                "Detected {} rapid deletion bursts targeting executables, drivers, or scripts (totaling {} files) within 3-second windows in sensitive locations.",
+                panic_bursts.len(),
                 total_files
             ),
             evidence: sample_usns,
