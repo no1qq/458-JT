@@ -16,28 +16,30 @@ a fast, low-level NTFS USN Journal parser and anti-forensics detection engine wr
 - timestomping analysis ($SI vs $FN attribute delta verification, 100ns precision truncation)
 - CyberCX Rewind path reconstruction algorithm for 100% accuracy on reused MFT entries
 - unallocated cluster slack carving to extract deleted ghost USN records
-- live real-time journal event monitoring with USN cursor polling
+- hardware-accelerated desktop UI capable of rendering 500k+ records smoothly
 - automated PC check presets for competitive gaming checks and triage
 
 ### requirements
 - Windows 10 / 11 (64-bit)
 - NTFS file system volume
-- Administrator privileges (required for raw disk handles and SeBackupPrivilege)
+- Administrator privileges (auto-elevated via UAC manifest)
 
-### quick start
-```powershell
-# run standard PC check forensic scan
-458-jt.exe scan --preset pccheck
+### usage
+simply launch `458-jt.exe`. the application automatically requests administrator elevation via UAC to obtain raw volume access (`\\.\C:`).
 
-# run dedicated anti-forensics and bypass audit
-458-jt.exe bypasses
+- **search bar**: filter file names or paths in real time. supports exact substrings, regex patterns (`r/\.dll$/`), and direct USN jumps (`#123456`).
+- **source selector**: switch seamlessly between active `$UsnJrnl:$J`, volume shadow copies, and unallocated carved slack.
+- **bypass checks**: click the risk badge (`[CLEAN]`, `[SUSPICIOUS]`, `[CRITICAL]`) in the top bar to inspect detected journal wipes, timestomping, rapid deletion bursts, and prefetch tampering.
+- **reason filters**: toggle any of the 24 NTFS USN reason bitmasks in the sidebar or apply the one-click `PC Check Filter` preset.
+- **record inspector**: click any row in the virtualized grid to view detailed attributes, MFT indices, and file metadata.
+- **export**: export filtered findings to CSV or full forensic report to JSON directly from the top bar.
 
-# stream live file operations in real time
-458-jt.exe live
-
-# carve unallocated clusters for ghost USN records
-458-jt.exe carve --volume C:
+### building
+to build the standalone release binary with embedded UAC manifest and icon:
+```cmd
+build.bat
 ```
+the compiled single-file executable will be placed in `bin\458-jt.exe`.
 
 ### license
 licensed under the [GNU General Public License v3.0](LICENSE).  
